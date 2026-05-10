@@ -1,4 +1,12 @@
-const API = "http://localhost:3000/notes";
+const DEFAULT_API_BASE = "http://localhost:3000";
+const runtimeApiBase = window.RUNTIME_CONFIG && window.RUNTIME_CONFIG.API_BASE;
+const effectiveApiBase = runtimeApiBase && !runtimeApiBase.includes("YOUR_BACKEND_URL")
+    ? runtimeApiBase
+    : DEFAULT_API_BASE;
+const normalizedApiBase = effectiveApiBase.replace(/\/+$/, "");
+const API = normalizedApiBase.endsWith("/notes")
+    ? normalizedApiBase
+    : `${normalizedApiBase}/notes`;
 
 let editId = null;
 let selectedNote = null;

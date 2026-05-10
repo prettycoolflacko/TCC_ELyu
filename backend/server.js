@@ -6,33 +6,54 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// DB connection (LOCAL first)
+const PORT = process.env.PORT || 3000;
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASSWORD = process.env.DB_PASSWORD || '';
+const DB_NAME = process.env.DB_NAME || 'ual_note';
+const DB_PORT = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
+
+// DB connection
 const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '', // adjust
-    database: 'ual_note'
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    database: DB_NAME,
+    port: DB_PORT
 });
 
 db.connect(err => {
-    if (err) throw err;
-    console.log('MySQL Connected...');
+    if (err) {
+        console.error(`MySQL connection failed (${DB_HOST}:${DB_PORT}/${DB_NAME} as ${DB_USER}):`, err.message);
+        console.error('Check DB_* environment variables.');
+        process.exit(1);
+    }
+    console.log('MySQL connected.');
 });
 
 // CREATE
 app.post('/notes', (req, res) => {
     const { judul, isi } = req.body;
+    if (!judul || !isi) {
+        return res.status(400).json({ error: 'judul and isi are required' });
+    }
     const sql = 'INSERT INTO notes (judul, isi) VALUES (?, ?)';
     db.query(sql, [judul, isi], (err, result) => {
-        if (err) throw err;
-        res.send('Note added');
+        if (err) {
+            console.error('Insert note failed:', err.message);
+            return res.status(500).json({ error: 'Failed to add note' });
+        }
+        res.status(201).json({ message: 'Note added', id: result.insertId });
     });
 });
 
 // READ
 app.get('/notes', (req, res) => {
     db.query('SELECT * FROM notes', (err, results) => {
-        if (err) throw err;
+        if (err) {
+            console.error('Fetch notes failed:', err.message);
+            return res.status(500).json({ error: 'Failed to fetch notes' });
+        }
         res.json(results);
     });
 });
@@ -40,10 +61,19 @@ app.get('/notes', (req, res) => {
 // UPDATE
 app.put('/notes/:id', (req, res) => {
     const { judul, isi } = req.body;
+    if (!judul || !isi) {
+        return res.status(400).json({ error: 'judul and isi are required' });
+    }
     const sql = 'UPDATE notes SET judul=?, isi=? WHERE id=?';
     db.query(sql, [judul, isi, req.params.id], (err, result) => {
-        if (err) throw err;
-        res.send('Note updated');
+        if (err) {
+            console.error('Update note failed:', err.message);
+            return res.status(500).json({ error: 'Failed to update note' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Note not found' });
+        }
+        res.json({ message: 'Note updated' });
     });
 });
 
@@ -51,11 +81,17 @@ app.put('/notes/:id', (req, res) => {
 app.delete('/notes/:id', (req, res) => {
     const sql = 'DELETE FROM notes WHERE id=?';
     db.query(sql, [req.params.id], (err, result) => {
-        if (err) throw err;
-        res.send('Note deleted');
+        if (err) {
+            console.error('Delete note failed:', err.message);
+            return res.status(500).json({ error: 'Failed to delete note' });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Note not found' });
+        }
+        res.json({ message: 'Note deleted' });
     });
 });
 
-app.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
